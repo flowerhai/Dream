@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-DreamLog Web - 智能梦境记录应用
+Dream - 智能梦境记录应用
 主入口文件
 """
 
+import sys
 import uvicorn
 from pathlib import Path
 from fastapi import FastAPI, Request
+
+# 添加项目根目录到路径
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,13 +72,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 挂载静态文件
-static_path = Path(__file__).parent / "static"
+# 挂载静态文件（项目根目录下的 static）
+static_path = PROJECT_ROOT / "static"
 static_path.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
-# 配置模板
-templates_path = Path(__file__).parent / "templates"
+# 配置模板（项目根目录下的 templates）
+templates_path = PROJECT_ROOT / "templates"
 templates_path.mkdir(parents=True, exist_ok=True)
 templates = Jinja2Templates(directory=str(templates_path))
 

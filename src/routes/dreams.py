@@ -7,7 +7,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
-from typing import Optional
+from sqlalchemy.orm import selectinload
+from typing import Optional, List
 from datetime import datetime, timedelta
 
 from src.utils.database import get_db
@@ -58,9 +59,16 @@ async def create_dream(
     
     db.add(db_dream)
     await db.commit()
-    await db.refresh(db_dream)
     
-    return db_dream
+    # 重新查询一次，预加载 tags，避免响应序列化阶段触发异步懒加载
+    result = await db.execute(
+        select(DreamModel)
+        .options(selectinload(DreamModel.tags))
+        .where(DreamModel.id == db_dream.id)
+    )
+    dream_with_tags = result.scalar_one()
+    
+    return dream_with_tags
 
 
 @router.get("/", response_model=DreamListResponse, summary="获取梦境列表")
@@ -77,7 +85,7 @@ async def get_dreams(
     获取梦境列表，支持分页和筛选
     """
     # 构建查询
-    query = select(DreamModel)
+    query = select(DreamModel).options(selectinload(DreamModel.tags))
     
     # 筛选条件
     if mood:
@@ -108,7 +116,23 @@ async def get_dreams(
     dreams = result.scalars().all()
     
     # 获取总数
+    # 计数要与筛选条件一致（不需要加载 tags）
     count_query = select(func.count()).select_from(DreamModel)
+    if mood:
+        count_query = count_query.where(DreamModel.mood == mood)
+    if start_date:
+        count_query = count_query.where(DreamModel.dream_date >= start_date)
+    if end_date:
+        count_query = count_query.where(DreamModel.dream_date <= end_date)
+    if tag:
+        tag_subquery = select(TagModel.id).where(TagModel.name == tag)
+        count_query = count_query.where(
+            DreamModel.id.in_(
+                select(dream_tags.c.dream_id).where(
+                    dream_tags.c.tag_id.in_(tag_subquery)
+                )
+            )
+        )
     count_result = await db.execute(count_query)
     total = count_result.scalar()
     
@@ -128,7 +152,9 @@ async def get_dream(
 ):
     """获取单个梦境的详细信息"""
     result = await db.execute(
-        select(DreamModel).where(DreamModel.id == dream_id)
+        select(DreamModel)
+        .options(selectinload(DreamModel.tags))
+        .where(DreamModel.id == dream_id)
     )
     dream = result.scalar_one_or_none()
     
@@ -146,7 +172,9 @@ async def update_dream(
 ):
     """更新梦境信息"""
     result = await db.execute(
-        select(DreamModel).where(DreamModel.id == dream_id)
+        select(DreamModel)
+        .options(selectinload(DreamModel.tags))
+        .where(DreamModel.id == dream_id)
     )
     dream = result.scalar_one_or_none()
     

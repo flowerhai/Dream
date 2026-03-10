@@ -13,8 +13,15 @@ from src.utils.config import settings
 
 
 # 创建异步引擎
+database_url = settings.DATABASE_URL
+# SQLAlchemy asyncio 需要 async driver；对 sqlite 默认做兼容转换
+if database_url.startswith("sqlite:///"):
+    database_url = database_url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
+elif database_url.startswith("sqlite://"):
+    database_url = database_url.replace("sqlite://", "sqlite+aiosqlite://", 1)
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    database_url,
     echo=settings.DEBUG,
     future=True
 )

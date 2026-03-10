@@ -4,13 +4,21 @@
 配置管理模块
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
     """应用配置"""
+    
+    # Pydantic v2 配置
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",  # 忽略未在模型中声明的环境变量（如 LOG_PATH）
+    )
     
     # 应用配置
     APP_NAME: str = "DreamLog Web"
@@ -19,7 +27,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "dreamlog-secret-key-change-in-production"
     
     # 数据库
-    DATABASE_URL: str = "sqlite:///./data/dreamlog.db"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./data/dreamlog.db"
     
     # AI 服务
     LLM_PROVIDER: str = "openai"
@@ -59,16 +67,15 @@ class Settings(BaseSettings):
     @property
     def DB_PATH(self) -> Path:
         """数据库文件路径"""
-        if self.DATABASE_URL.startswith("sqlite:///"):
-            db_path = self.DATA_DIR / self.DATABASE_URL.replace("sqlite:///./", "")
+        if self.DATABASE_URL.startswith(("sqlite:///","sqlite+aiosqlite:///")):
+            db_path = self.DATA_DIR / (
+                self.DATABASE_URL
+                .replace("sqlite+aiosqlite:///./", "", 1)
+                .replace("sqlite:///./", "", 1)
+            )
             db_path.parent.mkdir(parents=True, exist_ok=True)
             return db_path
         return self.DATA_DIR / "dream.db"
-    
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
 
 
 @lru_cache()
